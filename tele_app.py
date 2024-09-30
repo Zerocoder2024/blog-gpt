@@ -1,15 +1,14 @@
 import os
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse  # Для favicon
 from telethon import TelegramClient, functions, types
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
 from pydantic import BaseModel
 
 app = FastAPI()
 
-api_id = int(os.getenv('TELEGRAM_API_ID'))
-api_hash = os.getenv('TELEGRAM_API_HASH')
+api_id = int(os.getenv("TELEGRAM_API_ID"))
+api_hash = os.getenv("TELEGRAM_API_HASH")
 session_file_path = 'session_name'
 
 class PhoneNumber(BaseModel):
@@ -26,22 +25,6 @@ class StoryRequest(BaseModel):
     spoiler: bool = True
     ttl_seconds: int = 42
 
-# Маршрут для корневой страницы
-@app.get("/")
-async def root():
-    return {"message": "Hello, welcome to the Telegram bot API!"}
-
-# Маршрут для favicon
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    return RedirectResponse(url="/static/favicon.ico")
-
-# Маршрут для webhook
-@app.post("/api/webhook")
-async def webhook():
-    return {"message": "Webhook receiцукцукцукved successfully"}
-
-# Маршрут для генерации OTP
 @app.post("/generate_otp")
 async def generate_otp(phone_number: PhoneNumber):
     try:
@@ -54,7 +37,6 @@ async def generate_otp(phone_number: PhoneNumber):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Маршрут для верификации OTP
 @app.post("/verify_otp")
 async def verify_otp(otp_verification: OTPVerification):
     try:
@@ -75,7 +57,6 @@ async def verify_otp(otp_verification: OTPVerification):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Маршрут для отправки истории
 @app.post("/send_story")
 async def send_story(story_request: StoryRequest):
     try:
