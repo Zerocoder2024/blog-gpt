@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, HTTPException
 from telethon import TelegramClient, functions, types
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
