@@ -39,7 +39,7 @@ async def favicon():
 # Маршрут для webhook
 @app.post("/api/webhook")
 async def webhook():
-    return {"message": "Webhook received successfully"}
+    return {"message": "Webhook receiцукцукцукved successfully"}
 
 # Маршрут для генерации OTP
 @app.post("/generate_otp")
