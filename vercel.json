@@ -1,9 +1,15 @@
 {
   "version": 2,
   "builds": [
-    { "src": "tele_app.py", "use": "@vercel/python" }
+    {
+      "src": "main.py",
+      "use": "@vercel/python"
+    }
   ],
   "routes": [
-    { "src": "/(.*)", "dest": "tele_app.py" }
+    {
+      "src": "/(.*)",
+      "dest": "tele_app.py"
+    }
   ]
 }
