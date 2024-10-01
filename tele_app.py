@@ -5,8 +5,8 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-api_id = 23578640
-api_hash = 'a532bb4bf20ff8ce12a6a3bb882e9dd1'
+api_id = int(os.getenv("TELEGRAM_API_ID"))
+api_hash = os.getenv("TELEGRAM_API_HASH")
 session_file_path = 'session_name'
 
 class PhoneNumber(BaseModel):
