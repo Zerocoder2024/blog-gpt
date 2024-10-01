@@ -1,10 +1,9 @@
-# app.py
-
 import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import openai
 import requests
+import tiktoken
 
 app = FastAPI()
 
@@ -20,6 +19,35 @@ if not newsapi_key:
 class Topic(BaseModel):
     topic: str
 
+# Функция для подсчета токенов
+def count_tokens(text, model="gpt-4"):
+    encoding = tiktoken.encoding_for_model(model)
+    return len(encoding.encode(text))
+
+# Функция для сокращения текста до нужного количества токенов
+def truncate_text_to_token_limit(text, token_limit, model="gpt-4"):
+    encoding = tiktoken.encoding_for_model(model)
+    tokens = encoding.encode(text)
+    if len(tokens) > token_limit:
+        truncated_tokens = tokens[:token_limit]
+        return encoding.decode(truncated_tokens)
+    return text
+
+# Функция для сокращения текста по символам
+def truncate_text_to_char_limit(text, char_limit=1000):
+    if len(text) > char_limit:
+        return text[:char_limit] + '...'
+    return text
+
+# Функция для разделения текста на части
+def split_text(text, chunk_size=1000):
+    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+
+# Ограничение по токенам
+MAX_TOKENS = 8192
+TOKENS_FOR_RESPONSE = 500  # Увеличиваем количество токенов для ответа
+TOKENS_FOR_PROMPT = 8192 - TOKENS_FOR_RESPONSE  # Остальные токены для запроса и входных данных
+
 def get_recent_news(topic):
     url = f"https://newsapi.org/v2/everything?q={topic}&apiKey={newsapi_key}"
     response = requests.get(url)
@@ -28,19 +56,26 @@ def get_recent_news(topic):
     articles = response.json().get("articles", [])
     if not articles:
         return "Свежих новостей не найдено."
-    recent_news = [article["title"] for article in articles[:1]]
+    
+    # Ограничиваем количество заголовков, чтобы не перегрузить модель
+    recent_news = [article["title"] for article in articles[:1]]  # Ограничиваем до одного заголовка
     return "\n".join(recent_news)
 
 def generate_post(topic):
     recent_news = get_recent_news(topic)
 
     # Генерация заголовка
-    prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}."
+    prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}"
+    
+    # Проверка количества токенов в запросе
+    if count_tokens(prompt_title) > TOKENS_FOR_PROMPT:
+        raise ValueError("Слишком длинный запрос для заголовка.")
+
     try:
         response_title = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_title}],
-            max_tokens=30,
+            max_tokens=20,  # Уменьшаем количество токенов для заголовка
             n=1,
             temperature=0.7,
         )
@@ -50,11 +85,15 @@ def generate_post(topic):
 
     # Генерация мета-описания
     prompt_meta = f"Напишите краткое, но информативное мета-описание для поста с заголовком: {title}"
+    
+    if count_tokens(prompt_meta) > TOKENS_FOR_PROMPT:
+        raise ValueError("Слишком длинный запрос для мета-описания.")
+
     try:
         response_meta = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_meta}],
-            max_tokens=80,
+            max_tokens=30,  # Ограничиваем количество токенов для мета-описания
             n=1,
             temperature=0.7,
         )
@@ -62,17 +101,29 @@ def generate_post(topic):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации мета-описания: {str(e)}")
 
+    # Ограничиваем количество токенов для поста до 500, и уменьшаем количество новостных данных
+    recent_news = get_recent_news(topic)
+
+    # Сокращаем новостной контент, если он слишком длинный
+    recent_news = truncate_text_to_token_limit(recent_news, 100)  # Ограничиваем новости до 100 токенов
+
     # Генерация контента поста
     prompt_post = (
         f"Напишите подробный и увлекательный пост для блога на тему: {topic}, учитывая следующие последние новости:\n"
         f"{recent_news}\n\n"
         "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
     )
+    
+    # Проверка общего количества токенов (новости + запрос)
+    total_tokens = count_tokens(prompt_post)
+    if total_tokens > TOKENS_FOR_PROMPT:
+        raise ValueError(f"Слишком длинный запрос для генерации поста. Текущие токены: {total_tokens}")
+
     try:
         response_post = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_post}],
-            max_tokens=900,
+            max_tokens=TOKENS_FOR_RESPONSE,  # Ограничиваем токены для текста поста
             n=1,
             temperature=0.7,
         )
@@ -80,10 +131,13 @@ def generate_post(topic):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации контента поста: {str(e)}")
 
+    # Разбиваем текст поста на части для соответствия ограничениям Zapier
+    post_chunks = split_text(post_content, chunk_size=1000)
+
     return {
         "title": title,
         "meta_description": meta_description,
-        "post_content": post_content
+        "post_content_chunks": post_chunks  # Возвращаем пост по частям
     }
 
 @app.post("/generate-post")
