@@ -1,3 +1,5 @@
+# app.py
+
 import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -95,4 +97,4 @@ async def heartbeat_api():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)
