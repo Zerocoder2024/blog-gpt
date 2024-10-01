@@ -1,5 +1,3 @@
-import os
-
 from fastapi import FastAPI, HTTPException
 from telethon import TelegramClient, functions, types
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
@@ -7,8 +5,8 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-api_id = int(os.getenv("TELEGRAM_API_ID"))
-api_hash = os.getenv("TELEGRAM_API_HASH")
+api_id = 24427750
+api_hash = 'a9aab1745a59b335d046d3a93c025609'
 session_file_path = 'session_name'
 
 class PhoneNumber(BaseModel):
