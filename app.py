@@ -1,10 +1,9 @@
-# app.py
-
 import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import openai
 import requests
+import tiktoken  # для расчета токенов
 
 app = FastAPI()
 
@@ -31,16 +30,30 @@ def get_recent_news(topic):
     recent_news = [article["title"] for article in articles[:1]]
     return "\n".join(recent_news)
 
+# Функция для подсчета токенов
+def count_tokens(text, model="gpt-4"):
+    encoding = tiktoken.encoding_for_model(model)
+    return len(encoding.encode(text))
+
+# Ограничение по токенам
+MAX_TOKENS = 8192
+TOKENS_FOR_PROMPT = 1000  # Оставляем запас токенов для запросов и системных сообщений
+
 def generate_post(topic):
     recent_news = get_recent_news(topic)
 
     # Генерация заголовка
     prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}"
+    
+    # Проверка количества токенов в запросе
+    if count_tokens(prompt_title) > TOKENS_FOR_PROMPT:
+        raise ValueError("Слишком длинный запрос для заголовка.")
+
     try:
         response_title = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_title}],
-            max_tokens=25,
+            max_tokens=30,
             n=1,
             temperature=0.7,
         )
@@ -50,11 +63,15 @@ def generate_post(topic):
 
     # Генерация мета-описания
     prompt_meta = f"Напишите краткое, но информативное мета-описание для поста с заголовком: {title}"
+    
+    if count_tokens(prompt_meta) > TOKENS_FOR_PROMPT:
+        raise ValueError("Слишком длинный запрос для мета-описания.")
+
     try:
         response_meta = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_meta}],
-            max_tokens=40,
+            max_tokens=50,
             n=1,
             temperature=0.7,
         )
@@ -68,11 +85,15 @@ def generate_post(topic):
         f"{recent_news}\n\n"
         "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
     )
+    
+    if count_tokens(prompt_post) > TOKENS_FOR_PROMPT:
+        raise ValueError("Слишком длинный запрос для контента поста.")
+
     try:
         response_post = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_post}],
-            max_tokens=400,
+            max_tokens=400,  # Ограничиваем токены для текста поста
             n=1,
             temperature=0.7,
         )
