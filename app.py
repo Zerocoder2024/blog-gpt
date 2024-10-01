@@ -58,43 +58,4 @@ def generate_post(topic):
             n=1,
             temperature=0.7,
         )
-        meta_description = response_meta.choices[0].message.content.strip()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при генерации мета-описания: {str(e)}")
-
-    # Генерация контента поста
-    prompt_post = (
-        f"Напишите подробный и увлекательный пост для блога на тему: {topic}, учитывая следующие последние новости:\n"
-        f"{recent_news}\n\n"
-        "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
-    )
-    try:
-        response_post = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt_post}],
-            max_tokens=2048,
-            n=1,
-            temperature=0.7,
-        )
-        post_content = response_post.choices[0].message.content.strip()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка при генерации контента поста: {str(e)}")
-
-    return {
-        "title": title,
-        "meta_description": meta_description,
-        "post_content": post_content
-    }
-
-@app.post("/generate-post")
-async def generate_post_api(topic: Topic):
-    generated_post = generate_post(topic.topic)
-    return generated_post
-
-@app.get("/heartbeat")
-async def heartbeat_api():
-    return {"status": "OK"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000)
+        meta_description = response_meta.choices[0].message.
