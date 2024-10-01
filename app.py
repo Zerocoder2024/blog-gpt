@@ -26,7 +26,7 @@ def count_tokens(text, model="gpt-4"):
 
 # Ограничение по токенам
 MAX_TOKENS = 8192
-TOKENS_FOR_RESPONSE = 300  # Оставляем запас токенов для ответа (пост)
+TOKENS_FOR_RESPONSE = 250  # Уменьшаем количество токенов для ответа (пост)
 TOKENS_FOR_PROMPT = 8192 - TOKENS_FOR_RESPONSE  # Остальные токены для запроса и входных данных
 
 def get_recent_news(topic):
@@ -82,7 +82,7 @@ def generate_post(topic):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации мета-описания: {str(e)}")
 
-    # Ограничиваем количество токенов для поста до 300, и уменьшаем количество новостных данных
+    # Ограничиваем количество токенов для поста до 250, и уменьшаем количество новостных данных
     recent_news = get_recent_news(topic)
 
     # Сокращаем новостной контент, если он слишком длинный
@@ -129,4 +129,5 @@ async def heartbeat_api():
     return {"status": "OK"}
 
 if __name__ == "__main__":
-    impor
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)
