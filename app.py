@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import openai
 import requests
-import tiktoken  # для расчета токенов
+import tiktoken
 
 app = FastAPI()
 
@@ -19,6 +19,16 @@ if not newsapi_key:
 class Topic(BaseModel):
     topic: str
 
+# Функция для подсчета токенов
+def count_tokens(text, model="gpt-4"):
+    encoding = tiktoken.encoding_for_model(model)
+    return len(encoding.encode(text))
+
+# Ограничение по токенам
+MAX_TOKENS = 8192
+TOKENS_FOR_RESPONSE = 300  # Оставляем запас токенов для ответа (пост)
+TOKENS_FOR_PROMPT = 8192 - TOKENS_FOR_RESPONSE  # Остальные токены для запроса и входных данных
+
 def get_recent_news(topic):
     url = f"https://newsapi.org/v2/everything?q={topic}&apiKey={newsapi_key}"
     response = requests.get(url)
@@ -27,17 +37,10 @@ def get_recent_news(topic):
     articles = response.json().get("articles", [])
     if not articles:
         return "Свежих новостей не найдено."
-    recent_news = [article["title"] for article in articles[:1]]
+    
+    # Ограничиваем количество заголовков, чтобы не перегрузить модель
+    recent_news = [article["title"] for article in articles[:1]]  # Ограничиваем до одного заголовка
     return "\n".join(recent_news)
-
-# Функция для подсчета токенов
-def count_tokens(text, model="gpt-4"):
-    encoding = tiktoken.encoding_for_model(model)
-    return len(encoding.encode(text))
-
-# Ограничение по токенам
-MAX_TOKENS = 8192
-TOKENS_FOR_PROMPT = 1000  # Оставляем запас токенов для запросов и системных сообщений
 
 def generate_post(topic):
     recent_news = get_recent_news(topic)
@@ -79,6 +82,13 @@ def generate_post(topic):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации мета-описания: {str(e)}")
 
+    # Ограничиваем количество токенов для поста до 300, и уменьшаем количество новостных данных
+    recent_news = get_recent_news(topic)
+
+    # Сокращаем новостной контент, если он слишком длинный
+    if count_tokens(recent_news) > TOKENS_FOR_PROMPT - 100:  # Оставляем запас для запроса
+        recent_news = recent_news[:TOKENS_FOR_PROMPT - 100]
+
     # Генерация контента поста
     prompt_post = (
         f"Напишите подробный и увлекательный пост для блога на тему: {topic}, учитывая следующие последние новости:\n"
@@ -86,14 +96,16 @@ def generate_post(topic):
         "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
     )
     
-    if count_tokens(prompt_post) > TOKENS_FOR_PROMPT:
-        raise ValueError("Слишком длинный запрос для контента поста.")
+    # Проверка общего количества токенов (новости + запрос)
+    total_tokens = count_tokens(prompt_post)
+    if total_tokens > TOKENS_FOR_PROMPT:
+        raise ValueError(f"Слишком длинный запрос для генерации поста. Текущие токены: {total_tokens}")
 
     try:
         response_post = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_post}],
-            max_tokens=400,  # Ограничиваем токены для текста поста
+            max_tokens=TOKENS_FOR_RESPONSE,  # Ограничиваем токены для текста поста
             n=1,
             temperature=0.7,
         )
@@ -117,5 +129,4 @@ async def heartbeat_api():
     return {"status": "OK"}
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000)
+    impor
