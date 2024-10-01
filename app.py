@@ -2,7 +2,6 @@ import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import openai
-import requests
 
 app = FastAPI()
 
@@ -14,13 +13,7 @@ if openai.api_key is None:
 class Topic(BaseModel):
     topic: str
 
-def get_recent_news(topic):
-    # Заглушка для функции получения последних новостей
-    # В реальном применении здесь должен быть код для получения новостей по API
-    return f"Последние новости на тему {topic}: ..."
-
 def generate_post(topic):
-    recent_news = get_recent_news(topic)
     try:
         prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}"
         response_title = openai.ChatCompletion.create(
@@ -31,7 +24,7 @@ def generate_post(topic):
             temperature=0.7,
         )
         title = response_title['choices'][0]['message']['content'].strip()
-    except Exception as e:
+    except openai.error.OpenAIError as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации заголовка: {e}")
 
     try:
@@ -44,13 +37,12 @@ def generate_post(topic):
             temperature=0.7,
         )
         meta_description = response_meta['choices'][0]['message']['content'].strip()
-    except Exception as e:
+    except openai.error.OpenAIError as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации мета-описания: {e}")
 
     try:
         prompt_post = (
-            f"Напишите подробный и увлекательный пост для блога на тему: {topic}, "
-            f"учитывая следующие последние новости:\n{recent_news}\n\n"
+            f"Напишите подробный и увлекательный пост для блога на тему: {topic}.\n\n"
             "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова "
             "для лучшего восприятия и SEO-оптимизации."
         )
@@ -62,7 +54,7 @@ def generate_post(topic):
             temperature=0.7,
         )
         post_content = response_post['choices'][0]['message']['content'].strip()
-    except Exception as e:
+    except openai.error.OpenAIError as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации контента поста: {e}")
 
     return {
