@@ -35,7 +35,7 @@ def generate_post(topic):
     recent_news = get_recent_news(topic)
 
     # Генерация заголовка
-    prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}. В заголовке должно быть 30 символов."
+    prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}."
     try:
         response_title = openai.ChatCompletion.create(
             model="gpt-4",
@@ -54,7 +54,7 @@ def generate_post(topic):
         response_meta = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_meta}],
-            max_tokens=50,
+            max_tokens=80,
             n=1,
             temperature=0.7,
         )
@@ -66,13 +66,13 @@ def generate_post(topic):
     prompt_post = (
         f"Напишите подробный и увлекательный пост для блога на тему: {topic}, учитывая следующие последние новости:\n"
         f"{recent_news}\n\n"
-        "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации. В посте должно быть 500 символов."
+        "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
     )
     try:
         response_post = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_post}],
-            max_tokens=500,
+            max_tokens=1000,
             n=1,
             temperature=0.7,
         )
