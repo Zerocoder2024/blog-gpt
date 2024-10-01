@@ -24,9 +24,18 @@ def count_tokens(text, model="gpt-4"):
     encoding = tiktoken.encoding_for_model(model)
     return len(encoding.encode(text))
 
+# Функция для сокращения текста до нужного количества токенов
+def truncate_text_to_token_limit(text, token_limit, model="gpt-4"):
+    encoding = tiktoken.encoding_for_model(model)
+    tokens = encoding.encode(text)
+    if len(tokens) > token_limit:
+        truncated_tokens = tokens[:token_limit]
+        return encoding.decode(truncated_tokens)
+    return text
+
 # Ограничение по токенам
 MAX_TOKENS = 8192
-TOKENS_FOR_RESPONSE = 250  # Уменьшаем количество токенов для ответа (пост)
+TOKENS_FOR_RESPONSE = 250  # Ограничение на количество токенов для ответа (пост)
 TOKENS_FOR_PROMPT = 8192 - TOKENS_FOR_RESPONSE  # Остальные токены для запроса и входных данных
 
 def get_recent_news(topic):
@@ -56,7 +65,7 @@ def generate_post(topic):
         response_title = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_title}],
-            max_tokens=30,
+            max_tokens=30,  # Оставляем достаточно места для заголовка
             n=1,
             temperature=0.7,
         )
@@ -74,7 +83,7 @@ def generate_post(topic):
         response_meta = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_meta}],
-            max_tokens=50,
+            max_tokens=50,  # Ограничиваем количество токенов для мета-описания
             n=1,
             temperature=0.7,
         )
@@ -86,8 +95,7 @@ def generate_post(topic):
     recent_news = get_recent_news(topic)
 
     # Сокращаем новостной контент, если он слишком длинный
-    if count_tokens(recent_news) > TOKENS_FOR_PROMPT - 100:  # Оставляем запас для запроса
-        recent_news = recent_news[:TOKENS_FOR_PROMPT - 100]
+    recent_news = truncate_text_to_token_limit(recent_news, 100)  # Ограничиваем новости до 100 токенов
 
     # Генерация контента поста
     prompt_post = (
