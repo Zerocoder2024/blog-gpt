@@ -5,7 +5,6 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import openai
 import httpx  # Асинхронная библиотека для HTTP-запросов
-import asyncio
 
 app = FastAPI()
 
@@ -39,35 +38,35 @@ async def get_recent_news(topic):
     recent_news = [article["title"] for article in articles[:1]]  # Берем только 1 статью
     return "\n".join(recent_news)
 
-# Асинхронная функция для генерации поста
-async def generate_post(topic):
-    recent_news = await get_recent_news(topic)
+# Синхронная функция для генерации заголовка, мета-описания и контента
+def generate_post(topic):
+    recent_news = get_recent_news(topic)  # Вызов новостей остаётся асинхронным
 
     # Генерация заголовка
     prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}"
     try:
-        response_title = await openai.ChatCompletion.create(
+        response_title = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_title}],
             max_tokens=50,
             n=1,
             temperature=0.7,
         )
-        title = response_title.choices[0].message.content.strip()
+        title = response_title.choices[0].message['content'].strip()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации заголовка: {str(e)}")
 
     # Генерация мета-описания
     prompt_meta = f"Напишите краткое, но информативное мета-описание для поста с заголовком: {title}"
     try:
-        response_meta = await openai.ChatCompletion.create(
+        response_meta = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_meta}],
             max_tokens=100,
             n=1,
             temperature=0.7,
         )
-        meta_description = response_meta.choices[0].message.content.strip()
+        meta_description = response_meta.choices[0].message['content'].strip()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации мета-описания: {str(e)}")
 
@@ -78,14 +77,14 @@ async def generate_post(topic):
         "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
     )
     try:
-        response_post = await openai.ChatCompletion.create(
+        response_post = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_post}],
             max_tokens=2048,
             n=1,
             temperature=0.7,
         )
-        post_content = response_post.choices[0].message.content.strip()
+        post_content = response_post.choices[0].message['content'].strip()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации контента поста: {str(e)}")
 
@@ -97,7 +96,9 @@ async def generate_post(topic):
 
 @app.post("/generate-post")
 async def generate_post_api(topic: Topic):
-    generated_post = await generate_post(topic.topic)
+    # Поскольку OpenAI методы синхронные, мы вызываем синхронную функцию через `run_in_threadpool`
+    from starlette.concurrency import run_in_threadpool
+    generated_post = await run_in_threadpool(generate_post, topic.topic)
     return generated_post
 
 @app.get("/heartbeat")
