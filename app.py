@@ -28,7 +28,7 @@ def get_recent_news(topic):
     articles = response.json().get("articles", [])
     if not articles:
         return "Свежих новостей не найдено."
-    recent_news = [article["title"] for article in articles[:3]]
+    recent_news = [article["title"] for article in articles[:1]]
     return "\n".join(recent_news)
 
 def generate_post(topic):
