@@ -5,8 +5,8 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-api_id = 24427750
-api_hash = 'a9aab1745a59b335d046d3a93c025609'
+api_id = 23578640
+api_hash = 'a532bb4bf20ff8ce12a6a3bb882e9dd1'
 session_file_path = 'session_name'
 
 class PhoneNumber(BaseModel):
