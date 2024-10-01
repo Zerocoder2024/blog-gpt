@@ -48,7 +48,7 @@ def generate_post(topic):
         response_title = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_title}],
-            max_tokens=50,
+            max_tokens=30,
             n=1,
             temperature=0.7,
         )
@@ -62,7 +62,7 @@ def generate_post(topic):
         response_meta = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_meta}],
-            max_tokens=100,
+            max_tokens=50,
             n=1,
             temperature=0.7,
         )
@@ -80,7 +80,7 @@ def generate_post(topic):
         response_post = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_post}],
-            max_tokens=2048,
+            max_tokens=1000,
             n=1,
             temperature=0.7,
         )
