@@ -24,29 +24,10 @@ def count_tokens(text, model="gpt-4"):
     encoding = tiktoken.encoding_for_model(model)
     return len(encoding.encode(text))
 
-# Функция для сокращения текста до нужного количества токенов
-def truncate_text_to_token_limit(text, token_limit, model="gpt-4"):
-    encoding = tiktoken.encoding_for_model(model)
-    tokens = encoding.encode(text)
-    if len(tokens) > token_limit:
-        truncated_tokens = tokens[:token_limit]
-        return encoding.decode(truncated_tokens)
-    return text
-
-# Функция для сокращения текста по символам
-def truncate_text_to_char_limit(text, char_limit=1000):
-    if len(text) > char_limit:
-        return text[:char_limit] + '...'
-    return text
-
-# Функция для разделения текста на части
-def split_text(text, chunk_size=1000):
-    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
-
 # Ограничение по токенам
 MAX_TOKENS = 8192
-TOKENS_FOR_RESPONSE = 500  # Увеличиваем количество токенов для ответа
-TOKENS_FOR_PROMPT = 8192 - TOKENS_FOR_RESPONSE  # Остальные токены для запроса и входных данных
+TOKENS_FOR_RESPONSE = 400  # Ограничиваем количество токенов для ответа
+TOKENS_FOR_PROMPT = MAX_TOKENS - TOKENS_FOR_RESPONSE  # Остальные токены для запроса и входных данных
 
 def get_recent_news(topic):
     url = f"https://newsapi.org/v2/everything?q={topic}&apiKey={newsapi_key}"
@@ -65,7 +46,10 @@ def generate_post(topic):
     recent_news = get_recent_news(topic)
 
     # Генерация заголовка
-    prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}"
+    prompt_title = (
+        f"Придумайте привлекательный заголовок для поста на тему: {topic}. "
+        "Заголовок должен быть коротким, не более 10 слов."
+    )
     
     # Проверка количества токенов в запросе
     if count_tokens(prompt_title) > TOKENS_FOR_PROMPT:
@@ -75,16 +59,22 @@ def generate_post(topic):
         response_title = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_title}],
-            max_tokens=20,  # Уменьшаем количество токенов для заголовка
+            max_tokens=15,  # Ограничиваем до 15 токенов для заголовка
             n=1,
             temperature=0.7,
         )
         title = response_title.choices[0].message.content.strip()
+
+        if response_title.choices[0].finish_reason == 'length':
+            raise HTTPException(status_code=500, detail="Генерация заголовка была обрезана из-за ограничения по токенам.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации заголовка: {str(e)}")
 
     # Генерация мета-описания
-    prompt_meta = f"Напишите краткое, но информативное мета-описание для поста с заголовком: {title}"
+    prompt_meta = (
+        f"Напишите краткое, но информативное мета-описание для поста с заголовком: {title}. "
+        "Описание должно быть не длиннее 20 слов."
+    )
     
     if count_tokens(prompt_meta) > TOKENS_FOR_PROMPT:
         raise ValueError("Слишком длинный запрос для мета-описания.")
@@ -93,24 +83,22 @@ def generate_post(topic):
         response_meta = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt_meta}],
-            max_tokens=30,  # Ограничиваем количество токенов для мета-описания
+            max_tokens=25,  # Ограничиваем до 25 токенов для мета-описания
             n=1,
             temperature=0.7,
         )
         meta_description = response_meta.choices[0].message.content.strip()
+
+        if response_meta.choices[0].finish_reason == 'length':
+            raise HTTPException(status_code=500, detail="Генерация мета-описания была обрезана из-за ограничения по токенам.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации мета-описания: {str(e)}")
 
-    # Ограничиваем количество токенов для поста до 500, и уменьшаем количество новостных данных
-    recent_news = get_recent_news(topic)
-
-    # Сокращаем новостной контент, если он слишком длинный
-    recent_news = truncate_text_to_token_limit(recent_news, 100)  # Ограничиваем новости до 100 токенов
-
     # Генерация контента поста
     prompt_post = (
-        f"Напишите подробный и увлекательный пост для блога на тему: {topic}, учитывая следующие последние новости:\n"
-        f"{recent_news}\n\n"
+        f"Напишите подробный и увлекательный пост для блога на тему: {topic}, "
+        f"учитывая следующие последние новости:\n{recent_news}\n\n"
+        "Пост должен быть полностью завершённым и содержать не более 400 слов. "
         "Используйте короткие абзацы, подзаголовки, примеры и ключевые слова для лучшего восприятия и SEO-оптимизации."
     )
     
@@ -128,16 +116,16 @@ def generate_post(topic):
             temperature=0.7,
         )
         post_content = response_post.choices[0].message.content.strip()
+
+        if response_post.choices[0].finish_reason == 'length':
+            raise HTTPException(status_code=500, detail="Генерация поста была обрезана из-за ограничения по токенам.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации контента поста: {str(e)}")
-
-    # Разбиваем текст поста на части для соответствия ограничениям Zapier
-    post_chunks = split_text(post_content, chunk_size=1000)
 
     return {
         "title": title,
         "meta_description": meta_description,
-        "post_content_chunks": post_chunks  # Возвращаем пост по частям
+        "post_content": post_content  # Возвращаем полный текст поста
     }
 
 @app.post("/generate-post")
