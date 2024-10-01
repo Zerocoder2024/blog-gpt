@@ -4,7 +4,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import openai
-import httpx  # Асинхронная библиотека для HTTP-запросов
+import requests
 
 app = FastAPI()
 
@@ -20,27 +20,19 @@ if not newsapi_key:
 class Topic(BaseModel):
     topic: str
 
-# Асинхронная функция для получения новостей
-async def get_recent_news(topic):
+def get_recent_news(topic):
     url = f"https://newsapi.org/v2/everything?q={topic}&apiKey={newsapi_key}"
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            response = await client.get(url)
-            response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise HTTPException(status_code=500, detail=f"Ошибка при получении данных из NewsAPI: {exc}")
-        except httpx.RequestError as exc:
-            raise HTTPException(status_code=500, detail=f"Ошибка сети при обращении к NewsAPI: {exc}")
-    
+    response = requests.get(url)
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Ошибка при получении данных из NewsAPI")
     articles = response.json().get("articles", [])
     if not articles:
         return "Свежих новостей не найдено."
-    recent_news = [article["title"] for article in articles[:1]]  # Берем только 1 статью
+    recent_news = [article["title"] for article in articles[:1]]
     return "\n".join(recent_news)
 
-# Синхронная функция для генерации заголовка, мета-описания и контента
 def generate_post(topic):
-    recent_news = get_recent_news(topic)  # Вызов новостей остаётся асинхронным
+    recent_news = get_recent_news(topic)
 
     # Генерация заголовка
     prompt_title = f"Придумайте привлекательный заголовок для поста на тему: {topic}"
@@ -52,7 +44,7 @@ def generate_post(topic):
             n=1,
             temperature=0.7,
         )
-        title = response_title.choices[0].message['content'].strip()
+        title = response_title.choices[0].message.content.strip()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации заголовка: {str(e)}")
 
@@ -66,7 +58,7 @@ def generate_post(topic):
             n=1,
             temperature=0.7,
         )
-        meta_description = response_meta.choices[0].message['content'].strip()
+        meta_description = response_meta.choices[0].message.content.strip()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации мета-описания: {str(e)}")
 
@@ -84,7 +76,7 @@ def generate_post(topic):
             n=1,
             temperature=0.7,
         )
-        post_content = response_post.choices[0].message['content'].strip()
+        post_content = response_post.choices[0].message.content.strip()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при генерации контента поста: {str(e)}")
 
@@ -96,9 +88,7 @@ def generate_post(topic):
 
 @app.post("/generate-post")
 async def generate_post_api(topic: Topic):
-    # Поскольку OpenAI методы синхронные, мы вызываем синхронную функцию через `run_in_threadpool`
-    from starlette.concurrency import run_in_threadpool
-    generated_post = await run_in_threadpool(generate_post, topic.topic)
+    generated_post = generate_post(topic.topic)
     return generated_post
 
 @app.get("/heartbeat")
